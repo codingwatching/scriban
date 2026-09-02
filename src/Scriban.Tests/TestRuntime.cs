@@ -146,6 +146,20 @@ namespace Scriban.Tests
         }
 
         [Test]
+        public void RenderShouldResetCumulativeOutputTracking()
+        {
+            var context = new TemplateContext
+            {
+                LimitToString = 5
+            };
+            var largeTemplate = Template.Parse("{{ 'abc' }}{{ 'def' }}");
+            var smallTemplate = Template.Parse("{{ 'xy' }}");
+
+            Assert.AreEqual("abcde...", largeTemplate.Render(context));
+            Assert.AreEqual("xy", smallTemplate.Render(context));
+        }
+
+        [Test]
         public void StringMultiplicationShouldRespectLimitToString()
         {
             var context = new TemplateContext

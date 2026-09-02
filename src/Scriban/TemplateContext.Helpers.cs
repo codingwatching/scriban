@@ -82,6 +82,7 @@ namespace Scriban
         private int _currentToStringLength;
         private int _currentOutputLength;
         private bool _hasOutputLimitEllipsis;
+        private int _renderDepth;
 
         /// <summary>
         /// Called whenever an objects is converted to a string. This method can be overriden.

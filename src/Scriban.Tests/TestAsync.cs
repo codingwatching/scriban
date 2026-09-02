@@ -136,6 +136,20 @@ my_global_var
         StringAssert.Contains("iteration limit `10`", exception!.Message);
     }
 
+    [Test]
+    public async Task RenderAsyncShouldResetCumulativeOutputTracking()
+    {
+        var context = new TemplateContext
+        {
+            LimitToString = 5
+        };
+        var largeTemplate = Template.Parse("{{ 'abc' }}{{ 'def' }}");
+        var smallTemplate = Template.Parse("{{ 'xy' }}");
+
+        Assert.That(await largeTemplate.RenderAsync(context), Is.EqualTo("abcde..."));
+        Assert.That(await smallTemplate.RenderAsync(context), Is.EqualTo("xy"));
+    }
+
     public class ValueWrapper
     {
         public string Value { get; set; }

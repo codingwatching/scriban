@@ -726,6 +726,20 @@ namespace Scriban
             _hasOutputLimitEllipsis = false;
         }
 
+        internal void EnterRender()
+        {
+            if (_renderDepth == 0)
+            {
+                ResetOutputLimitTracking();
+            }
+            _renderDepth++;
+        }
+
+        internal void ExitRender()
+        {
+            _renderDepth--;
+        }
+
         private bool WriteOutputChunk(string text, int startIndex, int count)
         {
             if (count <= 0)

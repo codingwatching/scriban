@@ -183,14 +183,23 @@ namespace Scriban
         /// </remarks>
         public string Render(TemplateContext context)
         {
-            EvaluateAndRender(context, true);
-            var result = context.Output.ToString();
-            var output = context.Output as StringBuilderOutput;
-            if (output is not null)
+            if (context is null) throw new ArgumentNullException(nameof(context));
+            context.EnterRender();
+            try
             {
-                output.Builder.Length = 0;
+                EvaluateAndRender(context, true);
+                var result = context.Output.ToString();
+                var output = context.Output as StringBuilderOutput;
+                if (output is not null)
+                {
+                    output.Builder.Length = 0;
+                }
+                return result ?? string.Empty;
             }
-            return result ?? string.Empty;
+            finally
+            {
+                context.ExitRender();
+            }
         }
 
         /// <summary>
