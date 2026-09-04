@@ -41,5 +41,15 @@ var context4 = new TemplateContext();
 context4.PushGlobal(model);
 Console.WriteLine(template4.Render(context4));
 
+// 5. Contextless interface helpers, including generic arrays
+foreach (IScriptObject value in new IScriptObject[] { new ScriptObject(), new ScriptArray(), new ScriptArray<int>() })
+{
+    value.SetValue("name", "expected", false);
+    if (!value.TryGetValue("name", out var actual) || !Equals(actual, "expected"))
+    {
+        throw new InvalidOperationException("Contextless interface helper failed.");
+    }
+}
+
 Console.WriteLine("AOT test passed!");
 return 0;

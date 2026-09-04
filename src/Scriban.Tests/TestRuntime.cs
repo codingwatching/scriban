@@ -1664,16 +1664,103 @@ Tax: {{ 7 | match_tax }}";
         }
 
         [Test]
-        public void TestContextlessCustomScriptObjectAccessRetainsContext()
+        public void TestContextlessCustomScriptObjectAccessUsesNullContext()
         {
             IScriptObject scriptObject = new ContextTrackingScriptObject();
 
             scriptObject.SetValue("value", 1, false);
-            Assert.That(((ContextTrackingScriptObject)scriptObject).LastContext, Is.Not.Null);
+            Assert.That(((ContextTrackingScriptObject)scriptObject).LastSetContext, Is.Null);
 
             Assert.That(scriptObject.TryGetValue("value", out var value), Is.True);
             Assert.That(value, Is.EqualTo(1));
-            Assert.That(((ContextTrackingScriptObject)scriptObject).LastContext, Is.Not.Null);
+            Assert.That(((ContextTrackingScriptObject)scriptObject).LastGetContext, Is.Null);
+        }
+
+        [Test]
+        public void TestContextlessCustomScriptObjectImportUsesNullContext()
+        {
+            var scriptObject = new ContextlessScriptObject();
+            scriptObject.Import(new ContextlessImportModel());
+            scriptObject.Import(typeof(ContextlessImportModel));
+            scriptObject.Import("function", new Func<string>(() => "delegate"));
+
+            Assert.That(scriptObject.TryGetValue("field", out var value), Is.True);
+            Assert.That(value, Is.EqualTo("field value"));
+            Assert.That(scriptObject.TryGetValue("property", out value), Is.True);
+            Assert.That(value, Is.EqualTo("property value"));
+            Assert.That(scriptObject.TryGetValue("method", out value), Is.True);
+            Assert.That(value, Is.InstanceOf<IScriptCustomFunction>());
+            Assert.That(scriptObject.TryGetValue("function", out value), Is.True);
+            Assert.That(value, Is.InstanceOf<IScriptCustomFunction>());
+        }
+
+        [Test]
+        public void TestCustomGlobalVariableUsesGlobalScope()
+        {
+            var context = new TemplateContext { StrictVariables = true };
+            var variable = new CustomGlobalVariable("value");
+            context.SetValue(variable, "expected");
+            context.PushGlobal(new ScriptObject());
+
+            Assert.That(context.GetValue(variable), Is.EqualTo("expected"));
+            Assert.That(context.GetValue(new ScriptVariableGlobal("value")), Is.EqualTo("expected"));
+
+            context.TryGetVariable = (TemplateContext ctx, SourceSpan span, ScriptVariable requested, out object? value) =>
+            {
+                Assert.That(requested, Is.SameAs(variable));
+                value = "fallback";
+                return true;
+            };
+            context.PopGlobal();
+            context.DeleteValue(variable);
+            Assert.That(context.GetValue(variable), Is.EqualTo("fallback"));
+        }
+
+        [Test]
+        public void TestInterfaceHelpersDoNotAllocateContexts()
+        {
+            foreach (IScriptObject scriptObject in new IScriptObject[] { new ScriptObject(), new ScriptArray(), new ScriptArray<int>(), new ContextTrackingScriptObject(), new ContextlessScriptObject() })
+            {
+                const string expected = "expected";
+                scriptObject.SetValue("value", expected, false);
+                // Warm up before measuring; use a reference value to avoid boxing in the loop.
+                for (int i = 0; i < 100; i++)
+                {
+                    scriptObject.SetValue("value", expected, false);
+                    scriptObject.TryGetValue("value", out _);
+                }
+
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 100; i++)
+                {
+                    scriptObject.SetValue("value", expected, false);
+                    scriptObject.TryGetValue("value", out _);
+                }
+                var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero, scriptObject.GetType().Name);
+                Assert.That(scriptObject.TryGetValue("value", out var value), Is.True);
+                Assert.That(value, Is.EqualTo(expected));
+                scriptObject.SetValue("value", expected, true);
+                scriptObject.SetValue("value", "ignored", false);
+                Assert.That(scriptObject.TryGetValue("value", out value), Is.True);
+                Assert.That(value, Is.EqualTo(expected));
+                Assert.That(scriptObject.TryGetValue("missing", out _), Is.False);
+            }
+        }
+
+        [TestCase("{{ obj.value = 'updated'; obj.value }}")]
+        [TestCase("{{ obj['value'] = 'updated'; obj['value'] }}")]
+        public void TestScriptObjectEvaluationUsesActiveContext(string text)
+        {
+            var scriptObject = new ContextTrackingScriptObject();
+            var context = new TemplateContext();
+            context.PushGlobal(new ScriptObject { ["obj"] = scriptObject });
+
+            Assert.That(Template.Parse(text).Render(context), Is.EqualTo("updated"));
+            Assert.That(scriptObject.LastGetContext, Is.SameAs(context));
+            Assert.That(scriptObject.LastContext, Is.SameAs(context));
+            Assert.That(scriptObject.LastSetContext, Is.SameAs(context));
         }
 
         [Test]
@@ -2406,18 +2493,62 @@ end
         private sealed class ContextTrackingScriptObject : ScriptObject
         {
             public TemplateContext? LastContext { get; private set; }
+            public TemplateContext? LastGetContext { get; private set; }
+            public TemplateContext? LastSetContext { get; private set; }
 
             public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
             {
                 LastContext = context;
+                LastGetContext = context;
                 return base.TryGetValue(context, span, member, out value);
             }
 
             public override bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
             {
                 LastContext = context;
+                LastSetContext = context;
                 return base.TrySetValue(context, span, member, value, readOnly);
             }
+        }
+
+        private sealed class CustomGlobalVariable : ScriptVariable
+        {
+            public CustomGlobalVariable(string name) : base(name, ScriptVariableScope.Global)
+            {
+            }
+        }
+
+        private sealed class ContextlessScriptObject : IScriptObject
+        {
+            private readonly ScriptObject _store = new ScriptObject();
+
+            public int Count => _store.Count;
+            public bool IsReadOnly { get => _store.IsReadOnly; set => _store.IsReadOnly = value; }
+            public IEnumerable<string> GetMembers() => _store.GetMembers();
+            public bool Contains(string member) => _store.Contains(member);
+            public bool CanWrite(string member) => _store.CanWrite(member);
+            public bool Remove(string member) => _store.Remove(member);
+            public void SetReadOnly(string member, bool readOnly) => _store.SetReadOnly(member, readOnly);
+            public IScriptObject Clone(bool deep) => _store.Clone(deep);
+
+            public bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
+            {
+                if (context is not null) throw new InvalidOperationException("Expected contextless access.");
+                return _store.TryGetValue(context, span, member, out value);
+            }
+
+            public bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
+            {
+                if (context is not null) throw new InvalidOperationException("Expected contextless access.");
+                return _store.TrySetValue(context, span, member, value, readOnly);
+            }
+        }
+
+        private sealed class ContextlessImportModel
+        {
+            public string Field = "field value";
+            public string Property => "property value";
+            public static string Method() => "method value";
         }
 
         public class ScriptObjectWithNullable : ScriptObject

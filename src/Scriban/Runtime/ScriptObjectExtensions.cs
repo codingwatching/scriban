@@ -112,7 +112,7 @@ namespace Scriban.Runtime
 
         public static bool TryGetValue(this IScriptObject @this, string key, out object? value)
         {
-            return @this.TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+            return @this.TryGetValue(null, new SourceSpan(), key, out value);
         }
 
         public static void SetValue(this ScriptObject @this, string member, object? value, bool readOnly)
@@ -122,7 +122,7 @@ namespace Scriban.Runtime
 
         public static void SetValue(this IScriptObject @this, string member, object? value, bool readOnly)
         {
-            @this.TrySetValue(new TemplateContext(), new SourceSpan(), member, value, readOnly);
+            @this.TrySetValue(null, new SourceSpan(), member, value, readOnly);
         }
 
         /// <summary>
@@ -292,7 +292,7 @@ namespace Scriban.Runtime
                             // If field is init only or literal, it cannot be set back, so we mark it as read-only
                             if (scriptObj is null)
                             {
-                                script.TrySetValue(new TemplateContext(), new SourceSpan(), newFieldName, ConvertValue(field.GetValue(obj)), field.IsInitOnly || field.IsLiteral);
+                                script.TrySetValue(null, new SourceSpan(), newFieldName, ConvertValue(field.GetValue(obj)), field.IsInitOnly || field.IsLiteral);
                             }
                             else
                             {
@@ -331,7 +331,7 @@ namespace Scriban.Runtime
                             //script.SetValue(null, new SourceSpan(), newPropertyName, property.GetValue(obj), property.GetSetMethod() == null || !property.GetSetMethod().IsPublic);
                             if (scriptObj is null)
                             {
-                                script.TrySetValue(new TemplateContext(), new SourceSpan(), newPropertyName, ConvertValue(property.GetValue(obj)), false);
+                                script.TrySetValue(null, new SourceSpan(), newPropertyName, ConvertValue(property.GetValue(obj)), false);
                             }
                             else
                             {
@@ -362,7 +362,7 @@ namespace Scriban.Runtime
 
                             if (scriptObj is null)
                             {
-                                script.TrySetValue(new TemplateContext(), new SourceSpan(), newMethodName, DynamicCustomFunction.Create(obj, method), true);
+                                script.TrySetValue(null, new SourceSpan(), newMethodName, DynamicCustomFunction.Create(obj, method), true);
                             }
                             else
                             {
@@ -387,7 +387,7 @@ namespace Scriban.Runtime
             if (member is null) throw new ArgumentNullException(nameof(member));
             if (function is null) throw new ArgumentNullException(nameof(function));
 
-            script.TrySetValue(new TemplateContext(), new SourceSpan(), member, DynamicCustomFunction.Create(function), true);
+            script.TrySetValue(null, new SourceSpan(), member, DynamicCustomFunction.Create(function), true);
         }
 
         /// <summary>

@@ -250,9 +250,9 @@ namespace Scriban
         {
             if (variable is null) throw new ArgumentNullException(nameof(variable));
 
-            if (variable is ScriptVariableGlobal globalVariable)
+            if (variable.Scope == ScriptVariableScope.Global)
             {
-                return GetValue(globalVariable);
+                return GetGlobalValue(variable);
             }
 
             object? value = null;
@@ -299,6 +299,11 @@ namespace Scriban
         public object? GetValue(ScriptVariableGlobal variable)
         {
             if (variable is null) throw new ArgumentNullException(nameof(variable));
+            return GetGlobalValue(variable);
+        }
+
+        private object? GetGlobalValue(ScriptVariable variable)
+        {
             object? value = null;
 
             for (int i = _functionContexts.Count - 1; i >= 0; i--)

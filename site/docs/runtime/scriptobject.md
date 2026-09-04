@@ -28,6 +28,8 @@ A `ScriptObject` is mainly an extended version of a `IDictionary<string, object>
 
 Note that any `IDictionary<string, object>` put as a property will be accessible as well. Dictionary keys are treated as data and are not affected by `MemberRenamer` or `MemberFilter`.
 
+The `TemplateContext` parameter on `IScriptObject.TryGetValue` and `IScriptObject.TrySetValue` is nullable. Contextless helpers and imports pass `null` rather than creating a dummy context, including for custom implementations and subclasses. Custom implementations must handle this case when used outside template evaluation. During template evaluation, both member access and string-indexer access use the active context through the script-object accessor, rather than the contextless C# dictionary indexer.
+
 ## Imports System.Text.Json.JsonElement
 
 A `ScriptObject` or `ScriptArray` can import `JsonElement`.
