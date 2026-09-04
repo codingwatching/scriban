@@ -183,10 +183,10 @@ namespace Scriban.Syntax
 
             public bool IsReadOnly { get; set; }
 
-            public virtual bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object? value)
+            public virtual bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
             {
                 value = null;
-                var isLiquid = context.IsLiquid;
+                var isLiquid = context?.IsLiquid == true;
                 switch (member)
                 {
                     case "index":
@@ -236,7 +236,7 @@ namespace Scriban.Syntax
                 throw new System.NotImplementedException();
             }
 
-            public bool TrySetValue(TemplateContext context, SourceSpan span, string member, object? value, bool readOnly)
+            public bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
             {
                 return false;
             }

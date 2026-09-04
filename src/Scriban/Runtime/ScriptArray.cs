@@ -321,7 +321,7 @@ namespace Scriban.Runtime
             return ScriptObject.Contains(member);
         }
 
-        public virtual bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object? value)
+        public virtual bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
         {
             if (member == "size")
             {
@@ -342,7 +342,7 @@ namespace Scriban.Runtime
             return ScriptObject.CanWrite(member);
         }
 
-        public virtual bool TrySetValue(TemplateContext context, SourceSpan span, string member, object? value, bool readOnly)
+        public virtual bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
         {
             return ScriptObject.TrySetValue(context, span, member, value, readOnly);
         }

@@ -43,7 +43,7 @@ namespace Scriban.Runtime
         /// <summary>
         /// Tries the get the value of the specified member.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="context">The current template context.</param>
         /// <param name="span"></param>
         /// <param name="member">The member.</param>
         /// <param name="value">The value.</param>
@@ -60,7 +60,7 @@ namespace Scriban.Runtime
         /// <summary>
         /// Sets the value and readonly state of the specified member. This method overrides previous readonly state.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="context">The current template context.</param>
         /// <param name="span"></param>
         /// <param name="member">The member.</param>
         /// <param name="value">The value.</param>

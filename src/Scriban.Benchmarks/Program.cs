@@ -179,6 +179,35 @@ namespace Scriban.Benchmarks
     }
 
     /// <summary>
+    /// Measures the context and parsed-template reuse scenario from issue #682.
+    /// </summary>
+    [MemoryDiagnoser]
+    public class BenchTemplateReuse
+    {
+        private const string TextTemplate = "{{ date.now | date.parse_to_string \"%F\" }}";
+        private readonly Template _template = Template.Parse(TextTemplate);
+        private readonly TemplateContext _templateContext = new TemplateContext();
+
+        [Benchmark(Baseline = true)]
+        public string ReuseTemplateAndContext()
+        {
+            return _template.Render(_templateContext);
+        }
+
+        [Benchmark]
+        public string ReuseContext()
+        {
+            return Template.Parse(TextTemplate).Render(_templateContext);
+        }
+
+        [Benchmark]
+        public string DoNotReuse()
+        {
+            return Template.Parse(TextTemplate).Render(new TemplateContext());
+        }
+    }
+
+    /// <summary>
     /// A benchmark for template renderers
     /// </summary>
     [MemoryDiagnoser]

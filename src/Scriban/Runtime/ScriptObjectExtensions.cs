@@ -105,9 +105,19 @@ namespace Scriban.Runtime
         }
 #endif
 
+        public static bool TryGetValue(this ScriptObject @this, string key, out object? value)
+        {
+            return @this.TryGetValue(null, new SourceSpan(), key, out value);
+        }
+
         public static bool TryGetValue(this IScriptObject @this, string key, out object? value)
         {
             return @this.TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+        }
+
+        public static void SetValue(this ScriptObject @this, string member, object? value, bool readOnly)
+        {
+            @this.TrySetValue(null, new SourceSpan(), member, value, readOnly);
         }
 
         public static void SetValue(this IScriptObject @this, string member, object? value, bool readOnly)

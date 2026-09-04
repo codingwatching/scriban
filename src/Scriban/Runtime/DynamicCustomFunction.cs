@@ -36,6 +36,7 @@ namespace Scriban.Runtime
         protected readonly ParameterInfo[] Parameters;
         private readonly Type _returnType;
         private readonly ScriptParameterInfo[] _parameterInfos;
+        private readonly bool[] _parameterCanAcceptNull;
 
 #if !SCRIBAN_NO_ASYNC
         protected readonly bool IsAwaitable;
@@ -118,6 +119,7 @@ namespace Scriban.Runtime
 
             // Compute parameters
             _parameterInfos = new ScriptParameterInfo[_expectedNumberOfParameters];
+            _parameterCanAcceptNull = new bool[_expectedNumberOfParameters];
             for (int i = 0; i < _expectedNumberOfParameters; i++)
             {
                 var realIndex = _firstIndexOfUserParameters + i;
@@ -129,6 +131,7 @@ namespace Scriban.Runtime
                 _parameterInfos[i] = parameterInfo.HasDefaultValue
                     ? new ScriptParameterInfo(parameterType, parameterName, parameterInfo.DefaultValue)
                     : new ScriptParameterInfo(parameterType, parameterName);
+                _parameterCanAcceptNull[i] = CanAcceptNull(parameterInfo);
             }
         }
 
@@ -252,9 +255,9 @@ namespace Scriban.Runtime
         protected object? ConvertArgument(TemplateContext context, SourceSpan span, object? value, Type destinationType, int parameterIndex)
         {
             var converted = context.ToObject(span, value, destinationType);
-            var realParameterIndex = _firstIndexOfUserParameters + parameterIndex;
-            if (converted is null && realParameterIndex < Parameters.Length && !CanAcceptNull(Parameters[realParameterIndex]))
+            if (converted is null && parameterIndex < _parameterCanAcceptNull.Length && !_parameterCanAcceptNull[parameterIndex])
             {
+                var realParameterIndex = _firstIndexOfUserParameters + parameterIndex;
                 var parameter = Parameters[realParameterIndex];
                 var parameterName = parameter.Name ?? $"arg{parameterIndex}";
                 throw new ScriptRuntimeException(span, $"Argument `{parameterName}` cannot be null for function `{Method.Name}`.");

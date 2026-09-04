@@ -124,14 +124,14 @@ namespace Scriban.Syntax
             }
 
 
-            public override bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object? value)
+            public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
             {
                 if (!base.TryGetValue(context, span, member, out value))
                 {
                     switch (member)
                     {
                         case "col":
-                            value = context.IsLiquid ? Col + 1 : Col;
+                            value = context?.IsLiquid == true ? Col + 1 : Col;
                             return true;
                         case "col0":
                             value = Col;

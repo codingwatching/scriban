@@ -1646,6 +1646,37 @@ Tax: {{ 7 | match_tax }}";
         }
 
         [Test]
+        public void TestContextlessScriptObjectAccessDoesNotCreateContext()
+        {
+            var scriptObject = new ContextTrackingScriptObject();
+            scriptObject.SetValue("value", 1, false);
+
+            Assert.That(scriptObject["value"], Is.EqualTo(1));
+            Assert.That(scriptObject.LastContext, Is.Null);
+
+            scriptObject["value"] = 2;
+            Assert.That(scriptObject.LastContext, Is.Null);
+
+            var dictionary = (IDictionary<string, object?>)scriptObject;
+            Assert.That(dictionary.TryGetValue("value", out var value), Is.True);
+            Assert.That(value, Is.EqualTo(2));
+            Assert.That(scriptObject.LastContext, Is.Null);
+        }
+
+        [Test]
+        public void TestContextlessCustomScriptObjectAccessRetainsContext()
+        {
+            IScriptObject scriptObject = new ContextTrackingScriptObject();
+
+            scriptObject.SetValue("value", 1, false);
+            Assert.That(((ContextTrackingScriptObject)scriptObject).LastContext, Is.Not.Null);
+
+            Assert.That(scriptObject.TryGetValue("value", out var value), Is.True);
+            Assert.That(value, Is.EqualTo(1));
+            Assert.That(((ContextTrackingScriptObject)scriptObject).LastContext, Is.Not.Null);
+        }
+
+        [Test]
         public void TestScriptObjectImportDelegateOptionalParameter()
         {
             var obj = new ScriptObject();
@@ -2369,6 +2400,23 @@ end
             public static new string StaticYoyo(string text)
             {
                 return "yoyo2 " + text;
+            }
+        }
+
+        private sealed class ContextTrackingScriptObject : ScriptObject
+        {
+            public TemplateContext? LastContext { get; private set; }
+
+            public override bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
+            {
+                LastContext = context;
+                return base.TryGetValue(context, span, member, out value);
+            }
+
+            public override bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
+            {
+                LastContext = context;
+                return base.TrySetValue(context, span, member, value, readOnly);
             }
         }
 

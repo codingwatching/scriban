@@ -11,7 +11,6 @@ using Scriban.Runtime;
 using Scriban.Syntax;
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -251,14 +250,31 @@ namespace Scriban
         {
             if (variable is null) throw new ArgumentNullException(nameof(variable));
 
-            var stores = GetStoreForRead(variable);
-            object? value = null;
-            foreach (var store in stores)
+            if (variable is ScriptVariableGlobal globalVariable)
             {
-                if (store.TryGetValue(this, variable.Span, variable.Name, out value))
+                return GetValue(globalVariable);
+            }
+
+            object? value = null;
+            var currentLocalContext = _currentLocalContext ?? throw new ScriptRuntimeException(variable.Span, $"Invalid usage of the local variable `{variable}` in the current context");
+            var loopItems = currentLocalContext.Loops.Items;
+            for (int i = currentLocalContext.Loops.Count - 1; i >= 0; i--)
+            {
+                if (loopItems[i].TryGetValue(this, variable.Span, variable.Name, out value))
                 {
                     return value;
                 }
+            }
+
+            var localObject = currentLocalContext.LocalObject ?? _globalContexts.Peek().LocalObject;
+            if (localObject is null)
+            {
+                throw new ScriptRuntimeException(variable.Span, $"Invalid usage of the local variable `{variable}` in the current context");
+            }
+
+            if (localObject.TryGetValue(this, variable.Span, variable.Name, out value))
+            {
+                return value;
             }
 
             bool found = false;
@@ -285,11 +301,17 @@ namespace Scriban
             if (variable is null) throw new ArgumentNullException(nameof(variable));
             object? value = null;
 
-            foreach (var functionContext in GetVisibleFunctionContexts())
+            for (int i = _functionContexts.Count - 1; i >= 0; i--)
             {
+                var functionContext = _functionContexts.Items[i];
                 if (TryGetValue(functionContext, variable, out value))
                 {
                     return value;
+                }
+
+                if (functionContext.HideParentFunctionScopes)
+                {
+                    break;
                 }
             }
 
@@ -422,96 +444,19 @@ namespace Scriban
             return finalStore;
         }
 
-        /// <summary>
-        /// Returns the list of <see cref="ScriptObject"/> depending on the scope of the variable.
-        /// </summary>
-        /// <param name="variable"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        /// <returns>The list of script objects valid for the specified variable scope</returns>
-        private IEnumerable<IScriptObject> GetStoreForRead(ScriptVariable variable)
-        {
-            var scope = variable.Scope;
-
-            switch (scope)
-            {
-                case ScriptVariableScope.Global:
-                {
-                    foreach (var functionContext in GetVisibleFunctionContexts())
-                    {
-                        foreach (var store in GetStoresForRead(functionContext))
-                        {
-                            yield return store;
-                        }
-                    }
-
-                    for (int i = _globalContexts.Count - 1; i >= 0; i--)
-                    {
-                        var context = _globalContexts.Items[i];
-                        foreach (var store in GetStoresForRead(context))
-                        {
-                            yield return store;
-                        }
-                    }
-
-                    break;
-                }
-                case ScriptVariableScope.Local:
-                {
-                    var currentLocalContext = _currentLocalContext ?? throw new ScriptRuntimeException(variable.Span, $"Invalid usage of the local variable `{variable}` in the current context");
-                    var loopItems = currentLocalContext.Loops.Items;
-                    for (int i = currentLocalContext.Loops.Count - 1; i >= 0; i--)
-                    {
-                        yield return loopItems[i];
-                    }
-
-                    if (currentLocalContext.LocalObject is not null)
-                    {
-                        yield return currentLocalContext.LocalObject;
-                    }
-                    else if (_globalContexts.Count > 0)
-                    {
-                        var globalObject = _globalContexts.Peek().LocalObject;
-                        if (globalObject is null)
-                        {
-                            throw new ScriptRuntimeException(variable.Span, $"Invalid usage of the local variable `{variable}` in the current context");
-                        }
-
-                        yield return globalObject;
-                    }
-                    else
-                    {
-                        throw new ScriptRuntimeException(variable.Span, $"Invalid usage of the local variable `{variable}` in the current context");
-                    }
-
-                    break;
-                }
-
-                default:
-                    throw new NotImplementedException($"Variable scope `{scope}` is not implemented");
-            }
-        }
-
-        private IEnumerable<VariableContext> GetVisibleFunctionContexts()
+        private VariableContext GetCurrentGlobalVariableContext()
         {
             for (int i = _functionContexts.Count - 1; i >= 0; i--)
             {
-                var functionContext = _functionContexts.Items[i];
-                yield return functionContext;
-
-                if (functionContext.HideParentFunctionScopes)
-                {
-                    yield break;
-                }
-            }
-        }
-
-        private VariableContext GetCurrentGlobalVariableContext()
-        {
-            foreach (var currentFunctionContext in GetVisibleFunctionContexts())
-            {
+                var currentFunctionContext = _functionContexts.Items[i];
                 if (currentFunctionContext.LocalObject is not null)
                 {
                     return currentFunctionContext;
+                }
+
+                if (currentFunctionContext.HideParentFunctionScopes)
+                {
+                    break;
                 }
             }
 
@@ -528,19 +473,23 @@ namespace Scriban
             }
 
             IScriptObject? currentFunctionStore = null;
-            foreach (var functionContext in GetVisibleFunctionContexts())
+            for (int i = _functionContexts.Count - 1; i >= 0; i--)
             {
+                var functionContext = _functionContexts.Items[i];
                 var functionStore = functionContext.LocalObject;
-                if (functionStore is null)
+                if (functionStore is not null)
                 {
-                    continue;
+                    currentFunctionStore ??= functionStore;
+                    if (functionStore.Contains(name))
+                    {
+                        CheckStoreCanWrite(variable, functionStore);
+                        return functionStore;
+                    }
                 }
 
-                currentFunctionStore ??= functionStore;
-                if (functionStore.Contains(name))
+                if (functionContext.HideParentFunctionScopes)
                 {
-                    CheckStoreCanWrite(variable, functionStore);
-                    return functionStore;
+                    break;
                 }
             }
 
@@ -573,28 +522,20 @@ namespace Scriban
             return false;
         }
 
-        private static IEnumerable<IScriptObject> GetStoresForRead(VariableContext context)
+        private bool TryGetValue(VariableContext context, ScriptVariable variable, out object? value)
         {
             var loopItems = context.Loops.Items;
             for (int i = context.Loops.Count - 1; i >= 0; i--)
             {
-                yield return loopItems[i];
-            }
-
-            if (context.LocalObject is not null)
-            {
-                yield return context.LocalObject;
-            }
-        }
-
-        private bool TryGetValue(VariableContext context, ScriptVariable variable, out object? value)
-        {
-            foreach (var store in GetStoresForRead(context))
-            {
-                if (store.TryGetValue(this, variable.Span, variable.Name, out value))
+                if (loopItems[i].TryGetValue(this, variable.Span, variable.Name, out value))
                 {
                     return true;
                 }
+            }
+
+            if (context.LocalObject is not null && context.LocalObject.TryGetValue(this, variable.Span, variable.Name, out value))
+            {
+                return true;
             }
 
             value = null;

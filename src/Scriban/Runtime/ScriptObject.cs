@@ -192,7 +192,7 @@ namespace Scriban.Runtime
         /// <param name="member">The member.</param>
         /// <param name="value">The value.</param>
         /// <returns><c>true</c> if the value was retrieved</returns>
-        public virtual bool TryGetValue(TemplateContext context, SourceSpan span, string member, out object? value)
+        public virtual bool TryGetValue(TemplateContext? context, SourceSpan span, string member, out object? value)
         {
             InternalValue internalValue;
             var result = Store.TryGetValue(member, out internalValue);
@@ -238,7 +238,7 @@ namespace Scriban.Runtime
 
         bool IDictionary<string, object?>.TryGetValue(string key, out object? value)
         {
-            return TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+            return TryGetValue(null, new SourceSpan(), key, out value);
         }
 
         public virtual object? this[string key]
@@ -247,14 +247,14 @@ namespace Scriban.Runtime
             {
                 if (key is null) throw new ArgumentNullException(nameof(key));
                 object? value;
-                TryGetValue(new TemplateContext(), new SourceSpan(), key, out value);
+                TryGetValue(null, new SourceSpan(), key, out value);
                 return value;
             }
             set
             {
                 if (key is null) throw new ArgumentNullException(nameof(key));
                 this.AssertNotReadOnly();
-                TrySetValue(new TemplateContext(), new SourceSpan(), key, value, false);
+                TrySetValue(null, new SourceSpan(), key, value, false);
             }
         }
 
@@ -294,7 +294,7 @@ namespace Scriban.Runtime
         /// <param name="member">The member.</param>
         /// <param name="value">The value.</param>
         /// <param name="readOnly">if set to <c>true</c> the value will be read only.</param>
-        public virtual bool TrySetValue(TemplateContext context, SourceSpan span, string member, object? value, bool readOnly)
+        public virtual bool TrySetValue(TemplateContext? context, SourceSpan span, string member, object? value, bool readOnly)
         {
             if (!CanWrite(member)) return false;
             this.AssertNotReadOnly();
